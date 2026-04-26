@@ -1,14 +1,12 @@
 ---
 name: vabene-reddit-monitor
 description: Find Reddit posts where someone is doing planning labor for a group celebration and is stuck. Draft a planner-pain-framed reply for each qualifying post and surface to Telegram for manual approval. Never posts automatically.
-version: "2.0.0"
+version: "2.0.1"
 author: ben
 requires:
   tools:
     - bash
     - telegram
-  python_packages:
-    - requests
 triggers:
   - "scan reddit"
   - "check reddit leads"
@@ -31,6 +29,18 @@ Find Reddit posts where a real person is doing the planning labor for a group ce
 The user we serve is the **planner-friend**: the person who got handed the to-do list, has the group chat, and is going to be the one who books. The activity is not the pain. The coordination is the pain. Replies should speak to that.
 
 **Hard rule: this skill NEVER posts to Reddit automatically. All posting is manual by the human after reviewing the Telegram draft.**
+
+---
+
+## Prerequisites
+
+This skill invokes the sibling skill `reddit-readonly` for all Reddit fetches. Verify it's installed before any run:
+
+```bash
+openclaw skills list | grep reddit-readonly
+```
+
+If missing, this skill produces zero leads silently — no error, no Telegram alert. On a fresh host (e.g., DigitalOcean droplet migration), install it before deploying this skill. Step 1 below has an existence check that hard-fails if the scraper is missing, but the check only fires once a scan begins.
 
 ---
 
@@ -102,7 +112,11 @@ If ANY of these terms appear in the post title or body, return excluded immediat
 
 - vendor, florist, caterer, photographer, DJ, dress fitting, dress alterations
 - Gabby Windey, Jenn Tran, rose ceremony, this season, tonight's episode
-- The Bachelorette (capitalized as a show name), bachelor nation
+- bachelornation, bachelor nation
+- `episode \d+`, `season \d+`, `ep \d+` (regex — catches "episode 7", "season 12", "ep 3" regardless of capitalization)
+- hometowns this week, fantasy suite, final rose
+
+Capitalization-based detection of "The Bachelorette" was removed in 2.0.1: a real bach-party post could plausibly capitalize the word, while the patterns above catch the actual TV-context signals (subreddit name, episode/season references, in-show language) more reliably.
 
 These kill the post regardless of other signals. Vendor posts and TV-show crossposts are not VaBene leads under any score combination.
 
@@ -122,7 +136,7 @@ These kill the post regardless of other signals. Vendor posts and TV-show crossp
 
 - **+1** Explicit group size of 3 or more. Examples: "8 of us," "10 girls," "the whole group," "12 people," "all my college friends"
 
-- **+1** Decision-pending language present (counted separately from the pain axis even when triggered by the same phrase). The dual-counting is intentional — decision-pending is a strong VaBene-fit signal worth weighting twice.
+- **+1** Decision-pending language present. **Decision-pending posts have the highest VaBene fit** — a phrase like "haven't booked yet" deliberately counts in both this axis AND the +2 coordination-pain axis. Do not "fix" this dual-counting; it's the highest-signal pattern in the rubric.
 
 - **+1** SF or SF-adjacent. Either the post is in r/SanFrancisco, r/AskSF, or r/bayarea, or the body explicitly names SF, San Francisco, the Bay Area, or a SF neighborhood (Marina, Mission, Hayes Valley, etc.).
 
@@ -153,66 +167,92 @@ To restore strict two-axis behavior (require both celebration AND pain to reach 
 
 Per-call sub batching: maximum **4 subs per find call**. If a call returns an error or 404 for a specific sub, drop that sub from the batch and retry. This limits silent-degradation blast radius when a sub gets banned.
 
+**Tier 2 city subs and Tier 4 high-volume general subs run on alternating cron ticks:**
+
+- Tier 2 (Other city subs: LA, AskLosAngeles, Nashville, Vegas, Austin, Scottsdale) runs when hour ∈ {8, 12, 16, 20}
+- Tier 4 (High-volume general: AskWomen, AskWomenOver30, travel) runs when hour ∈ {10, 14, 18, 22}
+
+This alternation halves the per-run sub count for these tiers, keeping rate-limit headroom while still scanning each every 4 hours. Tier 1 (SF) and Tier 3 (working planning subs) run every tick.
+
 ```bash
-# SF batch — every run
-node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs find \
+# Verify reddit-readonly is available — fail loudly instead of silently producing 0 leads
+SCRAPER="$HOME/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs"
+if [[ ! -f "$SCRAPER" ]]; then
+  echo "ERROR: reddit-readonly skill missing at $SCRAPER. Cannot proceed." >&2
+  # Telegram-alert the human; do NOT silently produce 0 leads
+  exit 1
+fi
+
+# Tier alternation by hour (PT)
+HOUR=$(TZ=America/Los_Angeles date +%H)
+case "$HOUR" in
+  08|12|16|20) RUN_TIER2=true;  RUN_TIER4=false ;;
+  10|14|18|22) RUN_TIER2=false; RUN_TIER4=true  ;;
+  *)           RUN_TIER2=false; RUN_TIER4=false ;;  # manual run, neither alternating tier
+esac
+
+# Tier 1 — SF batch — every run
+node "$SCRAPER" find \
   --subreddits "SanFrancisco,AskSF,bayarea" \
   --query "planning birthday group party trip celebration" \
   --include "birthday,30th,40th,milestone,bach,bachelorette,girls trip,group trip,weekend trip,baby shower,engagement,anniversary,reunion,planning,coordinate,group chat,MOH,maid of honor,dirty 30,turning 30,fab 40,big 5-0,wish there was,drowning in options,nobody will commit,haven't booked,still need to decide" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,The Bachelorette,bachelor nation,registry,ceremony order,save the date,save-the-date,table assignments" \
+  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,bachelornation,bachelor nation,episode \\d+,season \\d+,ep \\d+,hometowns this week,fantasy suite,final rose,registry,ceremony order,save the date,save-the-date,table assignments" \
   --minScore 1 \
   --maxAgeHours 36 \
   --perSubredditLimit 15 \
   --maxResults 12 \
   --rank new
 
-# Working planning subs — every run
-node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs find \
+# Tier 3 — Working planning subs — every run
+node "$SCRAPER" find \
   --subreddits "BachelorettePlanning,weddingplanning" \
   --query "planning trying to coordinate help group" \
   --include "planning,coordinate,group chat,MOH,maid of honor,nobody will commit,wish there was,drowning,haven't booked,still need to decide,8 of us,10 girls,the whole group,bach,birthday,group trip,bridal shower" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,The Bachelorette,bachelor nation,registry,ceremony order,save the date,save-the-date,table assignments" \
+  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,bachelornation,bachelor nation,episode \\d+,season \\d+,ep \\d+,hometowns this week,fantasy suite,final rose,registry,ceremony order,save the date,save-the-date,table assignments" \
   --minScore 1 \
   --maxAgeHours 36 \
   --perSubredditLimit 15 \
   --maxResults 8 \
   --rank new
 
-# Other city subs — every other run (alternate by checking if hour is even)
-node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs find \
-  --subreddits "LosAngeles,AskLosAngeles,Nashville,LasVegas" \
-  --query "planning birthday group party trip celebration" \
-  --include "birthday,30th,40th,milestone,bach,bachelorette,girls trip,group trip,weekend trip,baby shower,engagement,anniversary,reunion,planning,coordinate,MOH,maid of honor,dirty 30,turning 30,fab 40,big 5-0,wish there was,drowning in options,nobody will commit,haven't booked" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,The Bachelorette,bachelor nation,registry" \
-  --minScore 1 \
-  --maxAgeHours 36 \
-  --perSubredditLimit 12 \
-  --maxResults 8 \
-  --rank new
+# Tier 2 — Other city subs — alternating runs only
+if [[ "$RUN_TIER2" == "true" ]]; then
+  node "$SCRAPER" find \
+    --subreddits "LosAngeles,AskLosAngeles,Nashville,LasVegas" \
+    --query "planning birthday group party trip celebration" \
+    --include "birthday,30th,40th,milestone,bach,bachelorette,girls trip,group trip,weekend trip,baby shower,engagement,anniversary,reunion,planning,coordinate,MOH,maid of honor,dirty 30,turning 30,fab 40,big 5-0,wish there was,drowning in options,nobody will commit,haven't booked" \
+    --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,bachelornation,bachelor nation,episode \\d+,season \\d+,ep \\d+,hometowns this week,fantasy suite,final rose,registry" \
+    --minScore 1 \
+    --maxAgeHours 36 \
+    --perSubredditLimit 12 \
+    --maxResults 8 \
+    --rank new
 
-# Other city subs round 2 — every other run, alternating from above
-node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs find \
-  --subreddits "Austin,Scottsdale" \
-  --query "planning birthday group party trip celebration" \
-  --include "birthday,30th,40th,milestone,bach,bachelorette,girls trip,group trip,weekend trip,baby shower,engagement,anniversary,reunion,planning,coordinate,MOH,maid of honor,dirty 30,turning 30,fab 40,big 5-0" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,The Bachelorette,bachelor nation,registry" \
-  --minScore 1 \
-  --maxAgeHours 36 \
-  --perSubredditLimit 12 \
-  --maxResults 6 \
-  --rank new
+  node "$SCRAPER" find \
+    --subreddits "Austin,Scottsdale" \
+    --query "planning birthday group party trip celebration" \
+    --include "birthday,30th,40th,milestone,bach,bachelorette,girls trip,group trip,weekend trip,baby shower,engagement,anniversary,reunion,planning,coordinate,MOH,maid of honor,dirty 30,turning 30,fab 40,big 5-0" \
+    --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,bachelornation,bachelor nation,episode \\d+,season \\d+,ep \\d+,hometowns this week,fantasy suite,final rose,registry" \
+    --minScore 1 \
+    --maxAgeHours 36 \
+    --perSubredditLimit 12 \
+    --maxResults 6 \
+    --rank new
+fi
 
-# High-volume general subs — every other run
-node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs find \
-  --subreddits "AskWomen,AskWomenOver30,travel" \
-  --query "planning birthday milestone bach group trip MOH coordinate" \
-  --include "I'm planning,trying to coordinate,MOH,maid of honor,30th,40th,milestone birthday,dirty 30,fab 40,group trip,girls trip,bach,bachelorette,wish there was,drowning in options,nobody will commit,haven't booked,still need to decide,8 of us,10 girls,the whole group,planner friend" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,The Bachelorette,bachelor nation,registry,solo trip,traveling alone,backpacking solo" \
-  --minScore 2 \
-  --maxAgeHours 36 \
-  --perSubredditLimit 10 \
-  --maxResults 5 \
-  --rank new
+# Tier 4 — High-volume general subs — alternating runs only
+if [[ "$RUN_TIER4" == "true" ]]; then
+  node "$SCRAPER" find \
+    --subreddits "AskWomen,AskWomenOver30,travel" \
+    --query "planning birthday milestone bach group trip MOH coordinate" \
+    --include "I'm planning,trying to coordinate,MOH,maid of honor,30th,40th,milestone birthday,dirty 30,fab 40,group trip,girls trip,bach,bachelorette,wish there was,drowning in options,nobody will commit,haven't booked,still need to decide,8 of us,10 girls,the whole group,planner friend" \
+    --exclude "vendor,florist,caterer,photographer,DJ,dress fitting,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,bachelornation,bachelor nation,episode \\d+,season \\d+,ep \\d+,hometowns this week,fantasy suite,final rose,registry,solo trip,traveling alone,backpacking solo" \
+    --minScore 2 \
+    --maxAgeHours 36 \
+    --perSubredditLimit 10 \
+    --maxResults 5 \
+    --rank new
+fi
 ```
 
 If Reddit rate-limits you, slow down with:
@@ -221,7 +261,7 @@ export REDDIT_RO_MIN_DELAY_MS=800
 export REDDIT_RO_MAX_DELAY_MS=1800
 ```
 
-If a sub returns an error, log the failure to MEMORY.md and continue with remaining subs. Do not let one banned sub kill the whole batch.
+If a sub returns an error, log the failure to {baseDir}/MEMORY.md and continue with remaining subs. Do not let one banned sub kill the whole batch.
 
 ### Step 2 — Score each candidate
 
@@ -243,7 +283,7 @@ node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs th
   <post_id|url> --commentLimit 50 --depth 3
 ```
 
-Skip if VaBene already mentioned in the thread. Log competitor mentions (Partiful, The Bash, Peerspace, Airbnb Experiences, Viator, GetYourGuide, Batch) to MEMORY.md for tracking.
+Skip if VaBene already mentioned in the thread. Log competitor mentions (Partiful, The Bash, Peerspace, Airbnb Experiences, Viator, GetYourGuide, Batch) to {baseDir}/MEMORY.md for tracking.
 
 ### Step 4 — Draft a reply
 
@@ -261,10 +301,10 @@ Skip if VaBene already mentioned in the thread. Log competitor mentions (Partifu
 **Templates — pivot from "your group can browse" to "you don't have to be the bottleneck":**
 
 MILESTONE BIRTHDAY (highest priority — SF wedge):
-> "Honestly the hardest part of planning a milestone birthday isn't picking the activity — it's getting eight people with eight schedules and eight opinions to commit to anything. [VaBene](https://vabene.app) is built for the person doing the planning labor: you put options in, the group votes, you book what wins. Cuts the back-and-forth way down for the planner-friend who's tired of being the bottleneck."
+> "The hardest part of planning a milestone birthday isn't picking the activity — it's getting eight people with eight schedules to commit to anything. [VaBene](https://vabene.app) is built for the planner-friend doing the labor: put options in, the group votes, you book what wins. Cuts the back-and-forth."
 
 GROUP TRIP / GIRLS TRIP:
-> "Group trips are amazing until you're three weeks deep in a group chat trying to nail down one restaurant while the planner-friend slowly loses their mind. [VaBene](https://vabene.app) is built for that exact problem — the person organizing puts options in, everyone votes, decisions get made. Worth a look if you're the one carrying it."
+> "Group trips are amazing until you're three weeks deep in a group chat trying to nail down one restaurant. [VaBene](https://vabene.app) is built for the person organizing — options in, votes out, decisions made. Worth a look if you're the one carrying it."
 
 BACHELORETTE / MOH:
 > "Being MOH and wrangling 8 people's opinions while the bride pretends she 'doesn't care' is its own job. [VaBene](https://vabene.app) was genuinely useful for ours — you put activity options in, everyone votes, and you stop being the bad guy making every decision alone. Saved a lot of group-chat back-and-forth."
@@ -291,7 +331,7 @@ One message per qualifying post:
 👤 Posted: [X hours ago] | Score: [REDDIT_SCORE] | Comments: [N]
 🔗 https://reddit.com[PERMALINK]
 
-📊 Lead score: [X]/7+
+📊 Lead score: [X]/7
   • Celebration: [TYPE] (+2)
   • Pain language: [present / absent] ([+2 or 0])
   • Group size: [N or "not mentioned"] ([+1 or 0])
@@ -305,36 +345,43 @@ One message per qualifying post:
 Tier: [HIGH/MED] | Event type: [TYPE]
 ```
 
-If no qualifying posts found: stay silent (do not send a "0 leads" message — Lead Digest cron handles daily summaries). Log scan to MEMORY.md.
+If no qualifying posts found: stay silent (do not send a "0 leads" message — Lead Digest cron handles daily summaries). Log scan to {baseDir}/MEMORY.md.
 
 ---
 
 ## Memory Tracking
 
-Append after each run to MEMORY.md:
+Append one JSONL line per run to {baseDir}/MEMORY.md. Structured rather than prose so `lead stats` can parse with `jq` instead of regex over text.
 
+Schema (one object per line, no trailing comma, no whitespace inside the line):
+
+```jsonl
+{"ts":"2026-04-26T20:00:00-07:00","scan":"reddit-monitor","fetched":42,"qualifying":3,"high":1,"med":2,"subreddit_yield":{"SanFrancisco":{"f":15,"q":1},"AskSF":{"f":12,"q":2},"weddingplanning":{"f":15,"q":0}},"trigger_pattern_yield":{"celebration+pain+group":2,"celebration+SF+group":1},"competitor_mentions":["Partiful"],"notes":"r/Bachelorette returning TV gossip again"}
 ```
-[DATE TIME PT] Scan: [N] posts fetched, [M] qualifying ([H] HIGH / [D] MED).
 
-Subreddit yield this run:
-  r/SanFrancisco: [F fetched, Q qualifying]
-  r/AskSF: [F fetched, Q qualifying]
-  ...
+Field reference:
+- `ts` — ISO 8601 with PT offset
+- `scan` — always `"reddit-monitor"` for this skill (interview-finder uses its own value)
+- `fetched` / `qualifying` / `high` / `med` — counts for this run
+- `subreddit_yield` — per-sub `{f: fetched, q: qualifying}`
+- `trigger_pattern_yield` — `{combo_name: count}` where combo_name is `+`-joined axis hits ("celebration+pain+group", "celebration+SF+group", "celebration+pain", etc.)
+- `competitor_mentions` — array of competitor names seen in scanned threads
+- `notes` — freeform observation (banned-sub events, unusual patterns)
 
-Trigger-pattern yield this run (which keyword combos surfaced qualifying posts):
-  celebration+pain+group: [N posts]
-  celebration+SF+group: [N posts]
-  celebration+pain only: [N posts]
-  ...
+`lead stats` parses with `jq`:
 
-Notes: [competitor mentions, banned subs encountered, anything notable]
+```bash
+# 7-day summary
+tail -100 {baseDir}/MEMORY.md | jq -s '
+  map(select(.scan == "reddit-monitor"))
+  | {runs: length, total_qualifying: (map(.qualifying) | add), total_high: (map(.high) | add)}'
 ```
 
 Track over time:
-- **Subreddit yield** — which subs actually produce qualifying leads. After 2 weeks, prune subs with zero yield.
-- **Trigger-pattern yield** — which keyword combinations surface real leads. Lets you tune the include keyword list empirically instead of guessing.
+- **Subreddit yield** — which subs actually produce qualifying leads. After 2 weeks, prune subs with zero `q`.
+- **Trigger-pattern yield** — which keyword combinations surface real leads. Lets you tune the include list empirically instead of guessing.
 - **Competitor mentions** — Partiful, Batch, etc. — surfaces emerging competitive pressure.
-- **Banned-sub events** — if a previously working sub starts returning errors, it may have been banned; flag for sub-list review.
+- **Banned-sub events** — if a previously working sub starts returning errors, log to `notes` and flag for sub-list review.
 
 ---
 
@@ -362,15 +409,17 @@ Verify: `openclaw cron list`
 
 ## Manual Telegram Commands
 
-- `scan reddit now` — full scan immediately
-- `scan sf` — SF batch only (r/SanFrancisco, r/AskSF, r/bayarea)
-- `scan birthdays` — all subs, milestone-birthday include filter only
-- `scan trips` — all subs, group-trip include filter only
-- `scan bach` — bachelorette-specific scan (r/BachelorettePlanning + bach include filter on city subs)
-- `scan bachelorette` — alias for `scan bach`
-- `lead stats` — 7-day summary from MEMORY.md
-- `pause reddit monitor` — disable the scheduled cron
-- `resume reddit monitor` — re-enable the scheduled cron
+| Command | Subs scanned | Filter applied |
+|---------|--------------|----------------|
+| `scan reddit now` | All tiers per architecture | Default include keywords |
+| `scan sf` | r/SanFrancisco, r/AskSF, r/bayarea | Default include + SF-only score boost |
+| `scan birthdays` | All tiers | Filter for milestone-birthday triggers only (30th, 40th, dirty 30, fab 40, big 5-0, milestone) |
+| `scan trips` | All tiers | Filter for group-trip triggers only (girls trip, group trip, friends trip, weekend trip) |
+| `scan bach` | r/BachelorettePlanning + city subs | Filter for bach triggers (bach, bachelorette, MOH, bridal shower) |
+| `scan bachelorette` | Alias for `scan bach` | Same |
+| `lead stats` | None — reads {baseDir}/MEMORY.md | 7-day JSONL summary via jq |
+| `pause reddit monitor` | None — disables cron | — |
+| `resume reddit monitor` | None — re-enables cron | — |
 
 ---
 
@@ -383,7 +432,7 @@ When iterating on this skill, tune in this order:
 3. **Include keyword coverage** — if real leads are slipping through with no score signal, the include list needs new keywords. Add and re-run.
 4. **Subreddit list** — last resort. Add or remove subs based on 2-week yield data, not gut feel. Don't add a sub without data showing it'll produce leads.
 
-Do not change scoring weights without writing down why in MEMORY.md and the skill's README change-log. Weights are easy to fiddle and hard to reason about retroactively.
+Do not change scoring weights without writing down why in {baseDir}/MEMORY.md and the skill's README change-log. Weights are easy to fiddle and hard to reason about retroactively.
 
 ---
 
@@ -403,6 +452,6 @@ When interview-finder gets its rewrite (deferred), the scoring scale in this ski
 ## Security
 
 - Read-only Reddit access. No credentials required.
-- No user PII stored in MEMORY.md (post titles and permalinks only — no usernames, no real names).
+- {baseDir}/MEMORY.md stores post titles and permalinks only — no usernames extracted, no real names, no message bodies. **Note**: titles + permalinks are still sufficient to identify the original poster via Reddit's UI; treat {baseDir}/MEMORY.md as containing soft-PII and don't share it externally.
 - All Telegram messages route through the configured bot.
 - No automatic posting to Reddit. All replies are drafted only; human approves and posts manually.
