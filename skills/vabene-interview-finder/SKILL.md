@@ -4,7 +4,7 @@ description: >-
   Find Reddit users worth interviewing for JTBD customer development.
   Score posts for interview-worthiness, draft personalized outreach DMs,
   and send candidates to Telegram for review. Never message anyone automatically.
-version: "1.0.0"
+version: "1.0.1"
 author: ben
 requires:
   tools:
@@ -66,14 +66,15 @@ Score each post 0-5:
 
 ### Primary (every run) — Where planners vent about pain
 
-- r/Bachelorette
 - r/BachelorettePlanning
-- r/MaidOfHonor
 - r/weddingplanning
-- r/birthdays
-- r/GirlsTrip
 - r/AskWomen
 - r/AskWomenOver30
+
+Note: r/Bachelorette is the TV show, not the planning community — do NOT
+include. r/MaidOfHonor, r/GirlsTrip, and r/birthdays were dropped:
+the first two are banned by Reddit, the third is celebration-of-self,
+not planning-for.
 
 ### Secondary (every other run) — Broader planning pain
 
@@ -116,7 +117,9 @@ someone should build,why is this so hard,worst part was
 **Exclude keywords** (wrong context):
 ```
 vendor,florist,caterer,photographer,DJ,dress,cake,
-recipe,decoration,DIY,craft,wedding venue,registry
+recipe,decoration,DIY,craft,wedding venue,registry,
+Gabby Windey,Jenn Tran,rose ceremony,this season,
+tonight's episode,The Bachelorette,bachelor nation
 ```
 
 ---
@@ -132,7 +135,7 @@ These subs are small enough that scanning the last 25 new posts catches everythi
 
 ```bash
 # Browse recent posts — these are the highest-signal subs
-for sub in MaidOfHonor BachelorettePlanning Bachelorette GirlsTrip; do
+for sub in BachelorettePlanning; do
   node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs posts "$sub" \
     --sort new --limit 25
 done
@@ -152,8 +155,12 @@ node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search AskWomenOve
 Catches posts in niche subs you'd never think to monitor.
 
 ```bash
+# Note: bachelorette query phrased to bias toward planning context, away from TV show.
+# r/all returns posts from any sub, so TV-show subs (r/thebachelor, r/BachelorNation)
+# can leak in. The qualification step (Step 3) is the real filter — if a post is
+# about Gabby Windey or rose ceremonies, score it 0 and discard.
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "planning bachelorette nightmare stress" --limit 10
+  "bachelorette party planning nightmare stress overwhelmed" --limit 10
 
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
   "birthday party planning disaster gave up" --limit 10

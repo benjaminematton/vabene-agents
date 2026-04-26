@@ -1,7 +1,7 @@
 ---
 name: vabene-reddit-monitor
 description: Monitor Reddit for group event planning posts and draft VaBene reply comments. Send drafts to Telegram for approval — never post automatically.
-version: "1.3.0"
+version: "1.3.1"
 author: ben
 requires:
   tools:
@@ -14,8 +14,6 @@ triggers:
   - "check reddit leads"
   - "run lead scan"
   - "vabene monitor"
-  - "find bachelorette posts"
-  - "scan moh"
   - "scan bachelorette"
   - "lead stats"
 ---
@@ -56,13 +54,13 @@ manual by the human after reviewing the Telegram draft.**
 The planner is VaBene's actual user — she has the to-do list, the group
 chat, and the pressure to deliver. These subs are where she lives.
 
-- r/Bachelorette
 - r/BachelorettePlanning
-- r/MaidOfHonor       ← planner with budget authority, highest intent
-- r/Bridesmaid        ← often doing the planning; filter for event posts only
 - r/weddingplanning   ← frequent "also planning the bach, help" threads
-- r/GirlsTrip
-- r/birthdays
+
+Note: r/Bachelorette is the TV show, not the planning community — do NOT
+include. r/MaidOfHonor, r/Bridesmaid, and r/GirlsTrip are banned by Reddit.
+r/birthdays is celebration-of-self, not planning-for, and produces no
+qualifying leads.
 
 ### City-specific (every run)
 Filter aggressively — only group/bach/party posts, skip everything else.
@@ -92,12 +90,12 @@ Higher noise ratio — worth scanning but don't over-weight.
 ### Step 1 — Fetch candidate posts
 
 ```bash
-# Primary batch
+# Primary batch — only working planning subs
 node ~/.openclaw/workspace/skills/reddit-readonly/scripts/reddit-readonly.mjs find \
-  --subreddits "Bachelorette,BachelorettePlanning,MaidOfHonor,Bridesmaid,weddingplanning,GirlsTrip,birthdays" \
+  --subreddits "BachelorettePlanning,weddingplanning" \
   --query "planning looking for recommendations help" \
   --include "bach,bachelorette,birthday,girls trip,group trip,bridal,baby shower,reunion,maid of honor,bridesmaids" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress,venue,catering,cake,drama,toxic" \
+  --exclude "vendor,florist,caterer,photographer,DJ,dress,venue,catering,cake,drama,toxic,Gabby Windey,Jenn Tran,rose ceremony,this season,tonight's episode,The Bachelorette,bachelor nation" \
   --minScore 1 \
   --maxAgeHours 36 \
   --perSubredditLimit 15 \
@@ -131,8 +129,6 @@ export REDDIT_RO_MAX_DELAY_MS=1800
 - Group size mentioned or implied (2+ people)
 - Under 48 hours old
 - Not already replied to with a VaBene-adjacent suggestion
-- r/Bridesmaid and r/MaidOfHonor only: post is about planning an event,
-  not dress drama, interpersonal issues, or wedding logistics
 
 **EXCLUDE if:**
 - Asking for vendors (photographers, florists, caterers, DJs, venues)
@@ -216,7 +212,6 @@ Track over time:
 - Which cities dominate city-specific subs
 - Most common event types by day/time
 - Competitor mentions in threads
-- r/MaidOfHonor and r/Bridesmaid signal quality vs primary bach subs
 
 ---
 
@@ -257,7 +252,6 @@ Verify: `openclaw cron list`
 
 - `scan reddit now` — full scan immediately
 - `scan bachelorette` — primary bach subs only
-- `scan moh` — r/MaidOfHonor and r/Bridesmaid only
 - `scan nashville` — Nashville sub only
 - `lead stats` — 7-day summary from MEMORY.md
 - `pause reddit monitor` — disable cron jobs
