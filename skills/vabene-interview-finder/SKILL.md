@@ -125,26 +125,44 @@ recipe,decoration,DIY,craft,wedding venue,registry
 
 ### Step 1 — Fetch candidate posts
 
+Use TWO strategies: browse recent posts (catches everything new) AND search for pain keywords (catches older high-signal posts).
+
+**Strategy A: Browse new posts in high-signal subreddits.**
+These subs are small enough that scanning the last 25 new posts catches everything from the past week.
+
 ```bash
-# Primary subreddits — pain language
-node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs find \
-  --subreddits "Bachelorette,BachelorettePlanning,MaidOfHonor,weddingplanning,birthdays,GirlsTrip,AskWomen,AskWomenOver30" \
-  --query "planning stress nightmare chaos gave up" \
-  --include "nightmare,disaster,fell apart,gave up,nobody committed,stressful,never again,chaos,impossible,lost money,spent hours,exhausted,resentful,embarrassed,wish there was,why is this so hard,worst part" \
-  --exclude "vendor,florist,caterer,photographer,DJ,dress,cake,recipe,decoration,DIY,registry" \
-  --minScore 2 \
-  --maxAgeHours 168 \
-  --perSubredditLimit 15 \
-  --maxResults 15 \
-  --rank new
+# Browse recent posts — these are the highest-signal subs
+for sub in MaidOfHonor BachelorettePlanning Bachelorette GirlsTrip; do
+  node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs posts "$sub" \
+    --sort new --limit 25
+done
 
-# r/all pain queries
-node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "planning group event nightmare fell apart gave up" --limit 15
+# Higher-volume subs — use search within them to filter
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search weddingplanning \
+  "planning stress nightmare chaos help" --limit 15
 
-node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "bachelorette birthday planning disaster stress chaos" --limit 15
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search AskWomen \
+  "planning party birthday bachelorette group stress" --limit 15
+
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search AskWomenOver30 \
+  "planning birthday party group trip stress" --limit 15
 ```
+
+**Strategy B: Search r/all for pain language.**
+Catches posts in niche subs you'd never think to monitor.
+
+```bash
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "planning bachelorette nightmare stress" --limit 10
+
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "birthday party planning disaster gave up" --limit 10
+
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "group trip planning fell apart nobody committed" --limit 10
+```
+
+**Filtering:** From all results, keep only posts from the last 7 days. Discard anything older. The `posts` command returns creation timestamps — check them.
 
 ### Step 2 — Read full thread for top candidates
 
