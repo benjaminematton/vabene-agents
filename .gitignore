@@ -1,0 +1,11 @@
+.DS_Store
+memory/MEMORY.md
+memory/*.local.md
+crons/jobs.json
+crons/jobs.local.json
+*.bak
+*.swp
+*.log
+node_modules/
+.env
+.env.*
