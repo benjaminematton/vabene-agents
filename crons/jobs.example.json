@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "fc20c038-32aa-4d20-a310-f8469453f5b5",
+      "name": "VaBene Interview Finder",
+      "enabled": true,
+      "createdAtMs": 1777069233888,
+      "updatedAtMs": 1777226852922,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run the vabene-interview-finder skill. Scan all target subreddits for interview candidates, score posts, draft outreach DMs, send qualifying candidates to Telegram. Never message anyone automatically.",
+        "model": "claude-sonnet-4-6"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "<TELEGRAM_CHAT_ID>"
+      },
+      "state": {
+        "nextRunAtMs": 1777305600000,
+        "lastError": "Delivering to Telegram requires target <chatId>",
+        "lastRunAtMs": 1777225319317,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 361832,
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    },
+    {
+      "id": "398290ae-3b3c-4b62-b89e-594cadf21916",
+      "name": "VaBene Reddit Scan",
+      "enabled": true,
+      "createdAtMs": 1777070510535,
+      "updatedAtMs": 1777230061491,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8,10,12,14,16,18,20,22 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run the vabene-reddit-monitor skill. Scan all target subreddits, qualify posts, draft replies, send to Telegram for approval. Do not post anything automatically.",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "<TELEGRAM_CHAT_ID>"
+      },
+      "state": {
+        "nextRunAtMs": 1777237200000,
+        "lastRunAtMs": 1777230000017,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 61474,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0,
+        "lastDelivered": true
+      }
+    },
+    {
+      "id": "7d4260c7-9f21-4c62-a171-2ef2c39dfa7f",
+      "name": "VaBene Lead Digest",
+      "enabled": true,
+      "createdAtMs": 1777070518801,
+      "updatedAtMs": 1777226851490,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 8 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Summarize yesterday's VaBene Reddit lead monitoring from MEMORY.md: posts found, top subreddits, patterns. Max 6 lines.",
+        "model": "claude-sonnet-4-6"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "<TELEGRAM_CHAT_ID>"
+      },
+      "state": {
+        "nextRunAtMs": 1777303800000,
+        "lastError": "Delivering to Telegram requires target <chatId>",
+        "lastRunAtMs": 1777225309308,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 10009,
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    }
+  ]
+}
