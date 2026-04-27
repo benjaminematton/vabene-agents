@@ -4,7 +4,9 @@ description: >-
   Find Reddit users worth interviewing for JTBD customer development.
   Score posts for interview-worthiness, draft personalized outreach DMs,
   and send candidates to Telegram for review. Never message anyone automatically.
-version: "1.0.1"
+  Two profiles: `pain` (default — planning-pain language) and `switching`
+  (operational complaints about incumbents like venue lead forms).
+version: "1.1.0"
 author: ben
 requires:
   tools:
@@ -17,6 +19,8 @@ triggers:
   - "find people to interview"
   - "custdev scan"
   - "who should I talk to"
+  - "find switchers"
+  - "switching scan"
 ---
 
 # VaBene Interview Candidate Finder
@@ -29,6 +33,52 @@ DM for each and send to Telegram for Ben to review and send manually.
 
 **Hard rule: this skill NEVER messages anyone on Reddit. All outreach is
 manual by the human after reviewing the Telegram draft.**
+
+---
+
+## Profiles: `pain` vs `switching`
+
+This skill ships with two interview-target profiles. Same fetch architecture, same scoring scaffold, different keyword anchoring and slightly different DM framing.
+
+| Profile | What it surfaces | Triggered by |
+|---|---|---|
+| `pain` (default) | Planning-pain venting — "nightmare," "fell apart," "gave up," "wish there was" | `find interviews`, `interview scan`, `custdev scan`, `who should I talk to` |
+| `switching` | Operational complaints about incumbents — venue lead forms, deposit terms, ghosting, slow quotes | `find switchers`, `switching scan` |
+
+### Why two profiles
+
+The `pain` profile finds people venting about planning being hard. The `switching` profile finds people venting about a *specific incumbent's process* — the dominant incumbent for SF self-host celebrants is the venue's own lead form (which, for most SF venues, runs on TripleSeat or Perfect Venue). Switching language sounds like *"I emailed five places and only two got back"*, not *"this is so stressful."* Both are good interview targets but the conversations go different directions.
+
+### `switching` profile keywords (operational pain — not brand names)
+
+When the trigger is `switching scan` or `find switchers`, override the include keyword set with operational complaints:
+
+```
+I emailed,emailed five places,emailed all the places,only got back,never heard back,
+the deposit terms,the deposit was insane,deposit terms were shocking,
+waited weeks for a quote,waited a week for,no quote yet,still no response,
+the contact form,contact form went nowhere,inquiry form was useless,
+ghosted me,ghosted us,ghosted after the deposit,
+lead form was a black hole,form felt like a black hole,
+no one answers the phone,nobody picks up the phone,can't get anyone on the phone,
+hour minimum just to ask,hour minimum to inquire,
+venue rentals are impossible,booking a venue is impossible,
+every place wants a $,5K minimum,10K minimum,wants a huge minimum,
+they only respond if you spend,had to chase them down,
+inquired but never heard,sent inquiries to,
+buyout minimum,F&B minimum,site fee
+```
+
+### Brand-name complaints — kept but **secondary**
+
+References to The Bash, Peerspace, GigSalad, Eventbrite, WeddingWire, The Knot vendor side, Partyslate, etc. still count as positive signal under the `switching` profile, but downweight (+0.5 instead of +1) — research consistently shows the bigger volume of pain is about the long tail of venue lead forms, not the marketplace brands.
+
+### DM framing differences
+
+- **`pain` profile DM**: "I saw your post about [SITUATION] — I'm building an app for that…"
+- **`switching` profile DM**: leads with the *specific incumbent process* the person complained about — "I saw you emailed five places and only got two back — that's exactly what I'm trying to fix…"
+
+Otherwise the templates and consent framing remain the same as `pain`.
 
 ---
 
@@ -255,21 +305,57 @@ Scanned [N] posts across [M] subreddits.
 Closest miss: "[TITLE]" (score 2, missing [WHAT]).
 ```
 
+**Also write per-candidate MEMORY.md entries** (one JSONL line per qualifying lead) so `vabene-interview-recruiter` can pick them up. See "Memory Tracking" below for the schema. Compute `lead_id` from the post URL using the cross-skill contract; set `outcome: "pending"` on first write.
+
 ---
 
 ## Memory Tracking
 
-Append after each run to MEMORY.md:
-```
-[DATE TIME PT] Interview scan: [N] posts scanned, [M] candidates surfaced (scores: [LIST]).
-Top subs: [SUBREDDITS]. Event types: [TYPES].
+Append-only JSONL — one or more lines per run. Two entry kinds:
+
+### Per-candidate entry (one per qualifying lead surfaced this run)
+
+Written alongside the per-candidate Telegram dispatch in Step 5. Lets `vabene-interview-recruiter` consume `outcome: "pending"` leads and de-duplicate against `vabene-reddit-monitor` via `lead_id`.
+
+```jsonl
+{"schema_version":"0.1","ts":"2026-04-26T09:00:00-07:00","scan":"interview-finder","lead_id":"a3f1b2c4d5e6","outcome":"pending","profile":"pain","score":4,"lead_url":"https://reddit.com/r/BachelorettePlanning/comments/abc123/...","subreddit":"BachelorettePlanning","post_title":"Trying to plan and the group chat keeps dying","post_snippet":"first ~200 chars of body","trigger_event":"30th birthday milestone","workaround":"group chat","pain_summary":"nobody replies, planner is doing all the labor","outcome_summary":"abandoned"}
 ```
 
-Track over time:
-- Which subreddits produce the best interview candidates
-- Common trigger events and workarounds seen
-- Response rate if Ben tracks which DMs got replies
+Field reference:
+
+- `schema_version` — always `"0.1"` from this skill at v1.1.0.
+- `ts` — ISO 8601 with PT offset.
+- `scan` — always `"interview-finder"`.
+- `lead_id` — see "Lead ID contract" below. Cross-skill dedup with `vabene-reddit-monitor` and `vabene-interview-recruiter`.
+- `outcome` — always `"pending"` on first write. Recruiter and downstream skills append separate `recruiter`-scan entries with state transitions; never edit-in-place.
+- `profile` — `"pain"` or `"switching"`.
+- `score` — 0–6 from the rubric.
+- `lead_url`, `subreddit`, `post_title`, `post_snippet` — for the recruiter to draft outreach without re-fetching.
+- `trigger_event`, `workaround`, `pain_summary`, `outcome_summary` — extracted in Step 3, used as DM context.
+
+### Per-run summary entry (one per run)
+
+```jsonl
+{"schema_version":"0.1","ts":"2026-04-26T09:00:00-07:00","scan":"interview-finder-run","profile":"pain","fetched":85,"surfaced":3,"top_subs":["BachelorettePlanning","weddingplanning","AskWomen"],"event_types":["30th birthday","group trip","bach"],"closest_miss_score":2,"notes":""}
+```
+
+Note: `scan` is `"interview-finder-run"` (not `"interview-finder"`) so recruiter and digest queries that filter `scan == "interview-finder"` won't accidentally pick up summary entries.
+
+### Lead ID contract
+
+`lead_id` is the first 12 hex characters of `sha256(normalized_url)`, where `normalized_url` is:
+
+- Lowercase host (`reddit.com`, not `Reddit.com` or `www.reddit.com`)
+- Reddit canonical post ID extracted: `reddit.com/r/<sub>/comments/<id>` (drop everything after the post ID, including comment slug, query string, anchor, trailing slash)
+
+This is a cross-skill contract shared with `vabene-reddit-monitor` and `vabene-interview-recruiter`. If upstream emits a hash with different normalization, the recruiter will treat the same URL as two leads. Fix at the source.
+
+### Track over time
+
+- Which subreddits produce the best interview candidates (per-candidate entries × `subreddit`)
+- Conversion: how many `outcome: "pending"` leads progress to `outcome: "interviewed"` via recruiter (cross-reference by `lead_id`)
 - Patterns in what scores 4+ vs 3
+- Pain-vs-switching profile yield comparison (run both occasionally; compare candidates surfaced per run)
 
 ---
 
@@ -301,10 +387,12 @@ Verify: `openclaw cron list`
 
 ## Manual Telegram Commands
 
-- `find interviews` — full scan immediately
+- `find interviews` — full scan with `pain` profile (default)
 - `interview scan` — same as above
 - `custdev scan` — same as above
 - `who should I talk to` — same as above
+- `find switchers` — full scan with `switching` profile (operational-pain incumbents)
+- `switching scan` — same as `find switchers`
 
 ---
 

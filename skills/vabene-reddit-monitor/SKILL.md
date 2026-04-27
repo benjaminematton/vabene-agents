@@ -1,7 +1,7 @@
 ---
 name: vabene-reddit-monitor
 description: Find Reddit posts where someone is doing planning labor for a group celebration and is stuck. Draft a planner-pain-framed reply for each qualifying post and surface to Telegram for manual approval. Never posts automatically.
-version: "2.0.1"
+version: "2.1.0"
 author: ben
 requires:
   tools:
@@ -347,34 +347,70 @@ Tier: [HIGH/MED] | Event type: [TYPE]
 
 If no qualifying posts found: stay silent (do not send a "0 leads" message — Lead Digest cron handles daily summaries). Log scan to {baseDir}/MEMORY.md.
 
+**Also write per-lead MEMORY.md entries** (one JSONL line per qualifying post, HIGH or MED). These entries are how `vabene-interview-recruiter` finds candidates worth drafting outreach for, and how cross-skill dedup against `vabene-interview-finder` works (same `lead_id` for the same post URL). See "Memory Tracking" below.
+
 ---
 
 ## Memory Tracking
 
-Append one JSONL line per run to {baseDir}/MEMORY.md. Structured rather than prose so `lead stats` can parse with `jq` instead of regex over text.
+Append-only JSONL — multiple entry kinds per run. All entries carry `schema_version: "0.1"`.
 
-Schema (one object per line, no trailing comma, no whitespace inside the line):
+### Per-lead entry (one per qualifying post — new in v2.1.0)
 
 ```jsonl
-{"ts":"2026-04-26T20:00:00-07:00","scan":"reddit-monitor","fetched":42,"qualifying":3,"high":1,"med":2,"subreddit_yield":{"SanFrancisco":{"f":15,"q":1},"AskSF":{"f":12,"q":2},"weddingplanning":{"f":15,"q":0}},"trigger_pattern_yield":{"celebration+pain+group":2,"celebration+SF+group":1},"competitor_mentions":["Partiful"],"notes":"r/Bachelorette returning TV gossip again"}
+{"schema_version":"0.1","ts":"2026-04-26T20:00:00-07:00","scan":"reddit-monitor","lead_id":"a3f1b2c4d5e6","outcome":"pending","tier":"HIGH","score":5,"lead_url":"https://reddit.com/r/SanFrancisco/comments/abc123/...","subreddit":"SanFrancisco","post_title":"Turning 30 in SF, 8 of us, looking for ideas","post_snippet":"first ~200 chars of body","celebration_type":"milestone birthday","group_size":8,"city":"San Francisco","decision_pending":"haven't booked yet","competitor_mentions":[]}
 ```
 
 Field reference:
-- `ts` — ISO 8601 with PT offset
-- `scan` — always `"reddit-monitor"` for this skill (interview-finder uses its own value)
+
+- `schema_version` — always `"0.1"` from this skill at v2.1.0.
+- `ts` — ISO 8601 with PT offset.
+- `scan` — always `"reddit-monitor"` for per-lead entries.
+- `lead_id` — see "Lead ID contract" below. Cross-skill dedup with `vabene-interview-finder` and `vabene-interview-recruiter`.
+- `outcome` — always `"pending"` on first write. Recruiter and downstream skills append separate `recruiter`-scan entries with state transitions; never edit-in-place.
+- `tier` — `"HIGH"` or `"MED"` (excluded posts don't get persisted per-lead).
+- `score` — numeric score from the rubric.
+- `lead_url`, `subreddit`, `post_title`, `post_snippet` — for the recruiter to draft outreach without re-fetching.
+- `celebration_type`, `group_size`, `city`, `decision_pending` — extracted in Step 2 step 4, used as DM context.
+- `competitor_mentions` — competitors named in this specific post (per-thread mentions go in the per-run summary).
+
+### Per-run summary entry (one per run — existing schema, now `schema_version`-stamped)
+
+```jsonl
+{"schema_version":"0.1","ts":"2026-04-26T20:00:00-07:00","scan":"reddit-monitor-run","fetched":42,"qualifying":3,"high":1,"med":2,"subreddit_yield":{"SanFrancisco":{"f":15,"q":1},"AskSF":{"f":12,"q":2},"weddingplanning":{"f":15,"q":0}},"trigger_pattern_yield":{"celebration+pain+group":2,"celebration+SF+group":1},"competitor_mentions":["Partiful"],"notes":"r/Bachelorette returning TV gossip again"}
+```
+
+Note the rename: `scan` is `"reddit-monitor-run"` (not `"reddit-monitor"`) so recruiter and digest queries that filter `scan == "reddit-monitor"` won't accidentally pick up summary entries when iterating per-lead. Existing pre-v2.1.0 entries in MEMORY.md still have `scan: "reddit-monitor"` for the run summary — `lead stats` jq queries should accept both during the transition.
+
+Field reference (unchanged from v2.0.1):
+
 - `fetched` / `qualifying` / `high` / `med` — counts for this run
 - `subreddit_yield` — per-sub `{f: fetched, q: qualifying}`
 - `trigger_pattern_yield` — `{combo_name: count}` where combo_name is `+`-joined axis hits ("celebration+pain+group", "celebration+SF+group", "celebration+pain", etc.)
 - `competitor_mentions` — array of competitor names seen in scanned threads
 - `notes` — freeform observation (banned-sub events, unusual patterns)
 
-`lead stats` parses with `jq`:
+### Lead ID contract
+
+`lead_id` is the first 12 hex characters of `sha256(normalized_url)`, where `normalized_url` is:
+
+- Lowercase host (`reddit.com`, not `Reddit.com` or `www.reddit.com`)
+- Reddit canonical post ID extracted: `reddit.com/r/<sub>/comments/<id>` (drop everything after the post ID, including comment slug, query string, anchor, trailing slash)
+
+This is a cross-skill contract shared with `vabene-interview-finder` and `vabene-interview-recruiter`. If upstream emits a hash with different normalization, the recruiter will treat the same URL as two leads. Fix at the source.
+
+`lead stats` parses with `jq`. Note the v2.1.0 rename: per-run summaries are now `scan: "reddit-monitor-run"`, with `scan: "reddit-monitor"` reserved for per-lead entries. The query below accepts both for backward compatibility with pre-v2.1.0 entries (which used `"reddit-monitor"` for run summaries):
 
 ```bash
-# 7-day summary
-tail -100 {baseDir}/MEMORY.md | jq -s '
-  map(select(.scan == "reddit-monitor"))
+# 7-day summary — accept both legacy and v2.1.0 summary scan tags
+tail -200 {baseDir}/MEMORY.md | jq -s '
+  map(select((.scan == "reddit-monitor-run") or (.scan == "reddit-monitor" and .qualifying != null)))
   | {runs: length, total_qualifying: (map(.qualifying) | add), total_high: (map(.high) | add)}'
+
+# Per-lead pending leads (v2.1.0+) — for recruiter consumption / debugging
+tail -500 {baseDir}/MEMORY.md | jq -s '
+  map(select(.scan == "reddit-monitor" and .lead_id != null and .outcome == "pending"))
+  | length'
 ```
 
 Track over time:
