@@ -8,7 +8,11 @@ Four [openclaw](https://github.com/openclaw/openclaw) skills running on a 24/7 M
 
 VaBene is a marketplace for self-host birthday/celebration planning, currently in pre-launch in San Francisco. The agents exist to compress the founder's time at the top of the funnel: turning passive Reddit lurking ("are people asking for what I'm building?") into a structured, version-controlled signal pipeline.
 
-> **Hero visual TODO** — drop a screenshot here of (a) the Telegram lead-card format, (b) a sample Lead Digest, and (c) a `git log --oneline` showing the iteration cadence. Three small images side-by-side say more than the next 200 lines of this README.
+<p align="center">
+  <img src="docs/img/telegram-lead-card.png" alt="A lead delivered by vabene-reddit-monitor to Telegram for manual review" width="320">
+  <br/>
+  <em>A typical scan output: run summary at top (subreddit yield, banned-sub status), the qualifying Reddit post + drafted reply card beneath. No automatic posting — every reply is reviewed by a human before going out.</em>
+</p>
 
 ## What's running
 
