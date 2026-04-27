@@ -6,7 +6,7 @@ description: >-
   and send candidates to Telegram for review. Never message anyone automatically.
   Two profiles: `pain` (default — planning-pain language) and `switching`
   (operational complaints about incumbents like venue lead forms).
-version: "1.1.0"
+version: "1.2.0"
 author: ben
 requires:
   tools:
@@ -69,6 +69,21 @@ inquired but never heard,sent inquiries to,
 buyout minimum,F&B minimum,site fee
 ```
 
+### OpenTable / venue-marketplace switching keywords (ADDED post-v4)
+
+Per v4 research, only 1 of 540 Reddit pain posts mentioned OpenTable — meaning **every fresh OpenTable mention in a planning context is a premium interview lead** (the rare user who knew the marketplace existed and tried it for groups). Add these to the switching profile:
+
+```
+tried OpenTable for the group,tried OpenTable for our party,
+OpenTable doesn't do groups,OpenTable's private dining,
+OpenTable for a party,OpenTable for our birthday,
+booked through OpenTable but,the OpenTable form,
+OpenTable group reservation,OpenTable couldn't handle,
+called the restaurant directly because OpenTable,
+Resy doesn't do private,tried Resy for our group,
+Tock private dining,Tock for our party
+```
+
 ### Brand-name complaints — kept but **secondary**
 
 References to The Bash, Peerspace, GigSalad, Eventbrite, WeddingWire, The Knot vendor side, Partyslate, etc. still count as positive signal under the `switching` profile, but downweight (+0.5 instead of +1) — research consistently shows the bigger volume of pain is about the long tail of venue lead forms, not the marketplace brands.
@@ -97,55 +112,68 @@ The best candidates have multiple of these signals:
 | **Wish statement** | "I wish there was..." = already reflecting on what should exist | Medium |
 | **Detailed post** (100+ words) | Longer posts = more reflective person = better interviewee | Medium |
 | **Multiple comments** | Engaged in discussion = more likely to respond to DM | Low |
+| **Habitual-planner identity** | "I'm always the planner," "I'm the planner friend" = recurring role, not one-off pain. Premium archetype with the most lived experience to extract. | Highest |
 
 ### Scoring
 
-Score each post 0-5:
+Score each post 0-7:
 - +1 if severity seems high (strong negative language, specific failures described)
 - +1 if a trigger event is identifiable (milestone birthday, engagement, someone leaving)
 - +1 if they name a tool/workaround they tried (Partiful, group chat, spreadsheet, hired someone)
 - +1 if the outcome was bad or the event was abandoned
 - +1 if they have a wish statement or express what should exist
 - +1 bonus if post is 150+ words with specific details (causal language, not pablum)
+- **+1 habitual-planner identity** ("I'm always the planner," "I'm the planner friend," "everyone always asks me," "tired of being the one organizing," "every single time it's me," etc.). Stacks with trigger-event signal — a habitual planner currently planning a milestone birthday is doubly high-signal.
 
-**Minimum score to surface: 3/6.** Below that, too thin for a useful interview.
+**Minimum score to surface: 3/7.** Below that, too thin for a useful interview. Habitual-planner identity alone (no current event signal) is worth surfacing if score ≥3 — they're venting about the role itself, which is the JTBD interview goldmine.
 
 ---
 
 ## Target Subreddits
 
-### Primary (every run) — Where planners vent about pain
+VaBene is **group celebration / private experiences** (milestone birthdays, engagement parties, anniversary dinners, going-away parties, baby showers, reunions) — *not* wedding planning. Wedding-adjacent surfaces are excluded because pain in those threads is wedding pain, which VaBene's product does not address.
 
-- r/BachelorettePlanning
-- r/weddingplanning
+### Primary (every run) — Where celebration-host pain shows up
+
 - r/AskWomen
 - r/AskWomenOver30
-
-Note: r/Bachelorette is the TV show, not the planning community — do NOT
-include. r/MaidOfHonor, r/GirlsTrip, and r/birthdays were dropped:
-the first two are banned by Reddit, the third is celebration-of-self,
-not planning-for.
+- r/SanFrancisco, r/AskSF, r/bayarea — SF launch market, every run
 
 ### Secondary (every other run) — Broader planning pain
 
-- r/wedding
-- r/Parenting
+- r/Parenting (baby shower / kids-birthday host pain)
 - r/Mommit
-- r/travel
-- r/relationships
+- r/travel (group-trip coordination)
+- r/relationships (group friction during planning)
 - r/TwoXChromosomes
+
+### Wrong product fit, banned, or dead — DO NOT scan
+
+- **r/weddingplanning, r/BachelorettePlanning, r/wedding** — wedding planning is structurally different from group-celebration hosting; pain in these threads is wedding pain. Hard-excluded.
+- r/Bachelorette — TV show, not planning
+- r/MaidOfHonor, r/GirlsTrip — banned by Reddit
+- r/birthdays — celebration-of-self, not planning-for
 
 ### Pain-specific queries for r/all (every run)
 
-These catch posts in niche subs you'd never think to monitor:
+These catch posts in niche subs you'd never think to monitor. Queries focus on celebration-host pain, NOT wedding pain:
 
 ```bash
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "planning nightmare group fell apart" --limit 10
+  "30th birthday planning nightmare group fell apart" --limit 10
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "birthday party planning stress gave up" --limit 10
+  "engagement party planning stress gave up" --limit 10
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "bachelorette planning disaster nobody committed" --limit 10
+  "milestone birthday planning disaster nobody committed" --limit 10
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "private dining group reservation impossible to coordinate" --limit 10
+
+# Habitual-planner identity — "the friend who plans everything." Premium
+# JTBD interview candidates (most lived experience to extract).
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "always the one planning friend group tired" --limit 10
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "I'm the planner friend everyone asks me" --limit 10
 ```
 
 ---
@@ -164,13 +192,19 @@ spent hours,exhausted,resentful,embarrassed,wish there was,
 someone should build,why is this so hard,worst part was
 ```
 
-**Exclude keywords** (wrong context):
+**Exclude keywords** (wrong context — wedding-PLANNING is NOT VaBene's product, but bach weekends ARE):
 ```
+my wedding,our wedding,wedding venue,wedding budget,
+wedding planner,wedding date,ceremony,vows,reception,officiant,
+registry,save the date,bridal shower,bridal brunch,
+RSVPs to the wedding,RSVP'd to the wedding,
 vendor,florist,caterer,photographer,DJ,dress,cake,
-recipe,decoration,DIY,craft,wedding venue,registry,
+recipe,decoration,DIY,craft,
 Gabby Windey,Jenn Tran,rose ceremony,this season,
 tonight's episode,The Bachelorette,bachelor nation
 ```
+
+Note: `bach`, `bachelorette`, `bach party`, `bachelor party`, `groomsmen`, `bridal party`, `MOH`, `maid of honor` are NOT in this list — bach weekends are real group celebrations VaBene serves. They are allowed but secondary; primary signal is celebration-host pain (milestone birthday, engagement, anniversary, etc.) and the **habitual-planner identity** archetype (see "Habitual planner" trigger below).
 
 ---
 
@@ -180,43 +214,47 @@ tonight's episode,The Bachelorette,bachelor nation
 
 Use TWO strategies: browse recent posts (catches everything new) AND search for pain keywords (catches older high-signal posts).
 
-**Strategy A: Browse new posts in high-signal subreddits.**
-These subs are small enough that scanning the last 25 new posts catches everything from the past week.
+**Strategy A: Search celebration-host pain in primary subs.**
+These subs cover the celebration-host audience without being wedding-shaped.
 
 ```bash
-# Browse recent posts — these are the highest-signal subs
-for sub in BachelorettePlanning; do
-  node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs posts "$sub" \
-    --sort new --limit 25
-done
-
-# Higher-volume subs — use search within them to filter
-node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search weddingplanning \
-  "planning stress nightmare chaos help" --limit 15
-
+# AskWomen variants — search within them to filter to celebration-host pain
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search AskWomen \
-  "planning party birthday bachelorette group stress" --limit 15
+  "30th 40th birthday party planning group stress" --limit 15
 
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search AskWomenOver30 \
-  "planning birthday party group trip stress" --limit 15
+  "milestone birthday engagement party anniversary group stress" --limit 15
+
+# SF launch-market city subs — celebration intent in real planning posts
+for sub in SanFrancisco AskSF bayarea; do
+  node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search "$sub" \
+    "30th birthday engagement party private dining group" --limit 10
+done
 ```
 
-**Strategy B: Search r/all for pain language.**
-Catches posts in niche subs you'd never think to monitor.
+**Strategy B: Search r/all for celebration-host pain language.**
+Catches posts in niche subs you'd never think to monitor. Queries deliberately avoid wedding/bachelorette context — those produce wrong-product-fit candidates.
 
 ```bash
-# Note: bachelorette query phrased to bias toward planning context, away from TV show.
-# r/all returns posts from any sub, so TV-show subs (r/thebachelor, r/BachelorNation)
-# can leak in. The qualification step (Step 3) is the real filter — if a post is
-# about Gabby Windey or rose ceremonies, score it 0 and discard.
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "bachelorette party planning nightmare stress overwhelmed" --limit 10
+  "30th birthday planning nightmare nobody committed" --limit 10
 
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "birthday party planning disaster gave up" --limit 10
+  "engagement party planning disaster gave up" --limit 10
 
 node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
-  "group trip planning fell apart nobody committed" --limit 10
+  "milestone birthday group trip fell apart" --limit 10
+
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "private dining group reservation impossible to coordinate" --limit 10
+
+# Habitual-planner identity — premium archetype, often venting about the role
+# itself rather than a single event.
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "always the one planning friend group tired" --limit 10
+
+node {baseDir}/../reddit-readonly/scripts/reddit-readonly.mjs search all \
+  "tired of being the one organizing everything" --limit 10
 ```
 
 **Filtering:** From all results, keep only posts from the last 7 days. Discard anything older. The `posts` command returns creation timestamps — check them.
@@ -236,7 +274,7 @@ story about a coordination disaster. You need the body.
 
 ### Step 3 — Score each post
 
-Read the full post text and score 0-6 using the criteria above.
+Read the full post text and score 0-7 using the criteria above.
 Only surface posts scoring 3+.
 
 For each qualifying post, extract:
@@ -268,10 +306,12 @@ For each qualifying post, extract:
 
 **Customize based on what you extracted:**
 
+- **If they're planning for a partner (modal scenario per v4 — 41% of for-others posts)**: "It sounds like you're trying to make [PARTNER]'s [MILESTONE] memorable — I'd really like to hear what felt like the hardest part of pulling it together for them."
 - If they named a workaround: "I saw you tried [TOOL] — I'd love to hear what worked and what didn't about it"
 - If the event was abandoned: "It sounds like [EVENT] didn't end up happening — I'd really like to understand what the breaking point was"
 - If they expressed a wish: "You mentioned wanting [THEIR WISH] — that's exactly what I'm trying to figure out how to build"
 - If they delegated: "It sounds like [PERSON] ended up taking it over — I'm curious what made you want to hand it off"
+- If they mentioned OpenTable (rare and high-signal — only 1 of 540 in v4): "I noticed you mentioned trying OpenTable — I'd really like to understand what made you reach for it (and whether it ended up working for the group case)."
 
 ### Step 5 — Send to Telegram
 
@@ -284,7 +324,7 @@ One message per qualifying candidate:
 👤 u/[USERNAME] | Posted: [X days ago] | Score: [N]
 🔗 https://reddit.com[PERMALINK]
 
-📊 Interview Score: [X]/6
+📊 Interview Score: [X]/7
   • Trigger: [trigger event or "not identified"]
   • Workaround: [what they're using or "not identified"]  
   • Pain: [one-line summary of what went wrong]
@@ -318,7 +358,7 @@ Append-only JSONL — one or more lines per run. Two entry kinds:
 Written alongside the per-candidate Telegram dispatch in Step 5. Lets `vabene-interview-recruiter` consume `outcome: "pending"` leads and de-duplicate against `vabene-reddit-monitor` via `lead_id`.
 
 ```jsonl
-{"schema_version":"0.1","ts":"2026-04-26T09:00:00-07:00","scan":"interview-finder","lead_id":"a3f1b2c4d5e6","outcome":"pending","profile":"pain","score":4,"lead_url":"https://reddit.com/r/BachelorettePlanning/comments/abc123/...","subreddit":"BachelorettePlanning","post_title":"Trying to plan and the group chat keeps dying","post_snippet":"first ~200 chars of body","trigger_event":"30th birthday milestone","workaround":"group chat","pain_summary":"nobody replies, planner is doing all the labor","outcome_summary":"abandoned"}
+{"schema_version":"0.1","ts":"2026-04-26T09:00:00-07:00","scan":"interview-finder","lead_id":"a3f1b2c4d5e6","outcome":"pending","profile":"pain","score":4,"lead_url":"https://reddit.com/r/AskSF/comments/abc123/...","subreddit":"AskSF","post_title":"Planning my friend's 30th, group chat is dead","post_snippet":"first ~200 chars of body","trigger_event":"30th birthday milestone","workaround":"group chat","pain_summary":"nobody replies, planner is doing all the labor","outcome_summary":"abandoned"}
 ```
 
 Field reference:
@@ -329,14 +369,14 @@ Field reference:
 - `lead_id` — see "Lead ID contract" below. Cross-skill dedup with `vabene-reddit-monitor` and `vabene-interview-recruiter`.
 - `outcome` — always `"pending"` on first write. Recruiter and downstream skills append separate `recruiter`-scan entries with state transitions; never edit-in-place.
 - `profile` — `"pain"` or `"switching"`.
-- `score` — 0–6 from the rubric.
+- `score` — 0–7 from the rubric.
 - `lead_url`, `subreddit`, `post_title`, `post_snippet` — for the recruiter to draft outreach without re-fetching.
 - `trigger_event`, `workaround`, `pain_summary`, `outcome_summary` — extracted in Step 3, used as DM context.
 
 ### Per-run summary entry (one per run)
 
 ```jsonl
-{"schema_version":"0.1","ts":"2026-04-26T09:00:00-07:00","scan":"interview-finder-run","profile":"pain","fetched":85,"surfaced":3,"top_subs":["BachelorettePlanning","weddingplanning","AskWomen"],"event_types":["30th birthday","group trip","bach"],"closest_miss_score":2,"notes":""}
+{"schema_version":"0.1","ts":"2026-04-26T09:00:00-07:00","scan":"interview-finder-run","profile":"pain","fetched":85,"surfaced":3,"top_subs":["AskWomen","AskSF","AskWomenOver30"],"event_types":["30th birthday","engagement party","group trip"],"closest_miss_score":2,"notes":""}
 ```
 
 Note: `scan` is `"interview-finder-run"` (not `"interview-finder"`) so recruiter and digest queries that filter `scan == "interview-finder"` won't accidentally pick up summary entries.
