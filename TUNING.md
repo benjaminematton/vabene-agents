@@ -50,9 +50,18 @@ On the openclaw host (`ssh macbookpro`):
 ```bash
 MEM=~/.openclaw/agents/main/memory/MEMORY.md
 
-# Reddit Scan summary, last ~7 days
+# Reddit Scan summary, last ~7 days.
+# Schema note: as of reddit-monitor v2.1.0, per-run summaries carry
+# scan="reddit-monitor-run" while per-lead entries carry scan="reddit-monitor".
+# We want per-run summaries only. The shape filter (.qualifying != null)
+# also picks up legacy pre-v2.1.0 entries that used scan="reddit-monitor"
+# for per-run summaries — keeps backward compatibility per the v2.1.0
+# change log promise.
 tail -200 "$MEM" | jq -s '
-  map(select(.scan == "reddit-monitor"))
+  map(select(
+    (.scan == "reddit-monitor-run")
+    or (.scan == "reddit-monitor" and (.qualifying // null) != null)
+  ))
   | {runs:             length,
      total_qualifying: (map(.qualifying) | add),
      total_high:       (map(.high)       | add),
@@ -70,7 +79,10 @@ Use it to check the success bar:
 
 ```bash
 tail -200 "$MEM" | jq -s '
-  map(select(.scan == "reddit-monitor") | .subreddit_yield)
+  map(select(
+    (.scan == "reddit-monitor-run")
+    or (.scan == "reddit-monitor" and (.subreddit_yield // null) != null)
+  ) | .subreddit_yield)
   | reduce .[] as $r ({};
       reduce ($r | to_entries[]) as $e (.;
         .[$e.key].f = ((.[$e.key].f // 0) + $e.value.f)
@@ -82,7 +94,10 @@ tail -200 "$MEM" | jq -s '
 
 ```bash
 tail -200 "$MEM" | jq -s '
-  map(select(.scan == "reddit-monitor") | .trigger_pattern_yield)
+  map(select(
+    (.scan == "reddit-monitor-run")
+    or (.scan == "reddit-monitor" and (.trigger_pattern_yield // null) != null)
+  ) | .trigger_pattern_yield)
   | reduce .[] as $r ({};
       reduce ($r | to_entries[]) as $e (.;
         .[$e.key] = ((.[$e.key] // 0) + $e.value)))
