@@ -22,6 +22,7 @@ Three openclaw cron jobs run on the host:
 Additional skills deployed but not yet wired to a cron (manual-run only until verified):
 
 - **`vabene-discovery-synthesis`** — two-phase JTBD synthesis over interview transcripts (HITL draft + refine; weekly aggregate produces candidate opportunities for the OST). Watches `~/.openclaw/agents/main/transcripts/`.
+- **`vabene-interview-recruiter`** — comment-first then DM Reddit outreach for qualified interview leads, with state tracking via `recruit-status <id> <state>` Telegram commands. Bridges `interview-finder` → `discovery-synthesis`.
 
 Skill source-of-truth lives under `skills/<skill-name>/`. `deploy.sh` symlinks each subdirectory into `~/.openclaw/skills/` on the host.
 
