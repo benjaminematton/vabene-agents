@@ -1,0 +1,22 @@
+Portfolio Repository — All Rights Reserved
+==========================================
+
+Copyright (c) 2026 Ben Matton
+
+This repository is published for review and reference purposes only — it
+documents the design, iteration, and operational discipline of a private
+agent system built for VaBene.
+
+Permission is NOT granted to use, copy, modify, merge, publish, distribute,
+sublicense, or sell copies of any part of this work, including the SKILL.md
+prose, the deploy and tuning scripts, the cron configurations, or the
+prompts.
+
+If you are evaluating this repository as part of a hiring process or peer
+review and would like to discuss any specific design choice, contact the
+author directly.
+
+Reading the code, learning from the patterns, and applying that learning
+to your own work is encouraged and obviously cannot be prohibited. Lifting
+files wholesale or republishing the prose under a different attribution is
+not permitted.

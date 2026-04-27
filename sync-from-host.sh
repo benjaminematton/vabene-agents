@@ -26,5 +26,5 @@ sed -E \
   "$REPO_DIR/crons/jobs.json" > "$REPO_DIR/crons/jobs.example.json"
 
 echo "synced."
-echo "review crons/jobs.example.json before committing — grep for the literal chat ID (e.g. <YOUR_CHAT_ID>) to confirm redaction."
+echo "review crons/jobs.example.json before committing — grep for the literal chat ID to confirm redaction."
 echo "if anything slipped through, extend the sed pipeline in sync-from-host.sh before commit."
