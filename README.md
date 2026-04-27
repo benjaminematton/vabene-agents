@@ -19,6 +19,10 @@ Three openclaw cron jobs run on the host:
 - **Lead Digest** — id `7d4260c7-9f21-4c62-a171-2ef2c39dfa7f`, no skill (inline prompt; lives in `prompts/lead-digest.md`)
 - **Interview Finder** — id `fc20c038-32aa-4d20-a310-f8469453f5b5`, backed by the `vabene-interview-finder` skill
 
+Additional skills deployed but not yet wired to a cron (manual-run only until verified):
+
+- **`vabene-discovery-synthesis`** — two-phase JTBD synthesis over interview transcripts (HITL draft + refine; weekly aggregate produces candidate opportunities for the OST). Watches `~/.openclaw/agents/main/transcripts/`.
+
 Skill source-of-truth lives under `skills/<skill-name>/`. `deploy.sh` symlinks each subdirectory into `~/.openclaw/skills/` on the host.
 
 ## Change workflow
