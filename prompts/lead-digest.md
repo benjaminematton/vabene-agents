@@ -16,4 +16,4 @@ Summarize yesterday's VaBene Reddit lead monitoring from MEMORY.md: posts found,
 
 This is a one-shot prompt passed directly via the cron's `payload.message`, not a skill. It runs after the Reddit Scan cron's overnight passes (Reddit Scan runs at 08, 10, 12, 14, 16, 18, 20, 22 PT) so the digest reads fresh data.
 
-Reads `~/.openclaw/agents/main/memory/MEMORY.md` (host-side) — the agent's own conversational memory, where the Reddit Scan accumulates lead notes.
+Reads `~/.openclaw/workspace/MEMORY.md` (host-side) — the agent workspace where the Reddit Scan accumulates JSONL lead entries.

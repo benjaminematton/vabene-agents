@@ -61,7 +61,7 @@ State changes always APPEND a new MEMORY.md entry. Never edit-in-place — the h
 ### Step 1 — Discover leads
 
 ```bash
-MEMFILE="$HOME/.openclaw/agents/main/memory/MEMORY.md"
+MEMFILE="$HOME/.openclaw/workspace/MEMORY.md"
 [[ -f "$MEMFILE" ]] || { echo "ERROR: MEMORY.md missing at $MEMFILE" >&2; exit 1; }
 ```
 
